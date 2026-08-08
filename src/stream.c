@@ -23,6 +23,9 @@ wtf_stream* wtf_stream_create(wtf_session* session, uint64_t stream_id, wtf_stre
     stream->state = WTF_INTERNAL_STREAM_STATE_IDLE;
     stream->priority = 0;
     stream->receive_enabled = true;
+    // Incoming stream callbacks inherit the session callback context unless
+    // the application explicitly replaces it.
+    stream->user_context = session->user_context;
     atomic_init(&stream->ref_count, 1);
 
     if (mtx_init(&stream->mutex, mtx_plain) != thrd_success) {

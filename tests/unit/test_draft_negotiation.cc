@@ -1,9 +1,7 @@
 #include <gtest/gtest.h>
 
-extern "C" {
 #include "draft.h"
 #include "settings.h"
-}
 
 namespace {
 

@@ -18,7 +18,7 @@ class ContextFixture : public ::testing::Test {
     void SetUp() override
     {
         wtf_context_config_t config = {};
-        config.log_level = WTF_LOG_LEVEL_NONE;
+        config.log_level = WTF_LOG_LEVEL_ERROR;
         ASSERT_EQ(WTF_SUCCESS, wtf_context_create(&config, &context_));
         ASSERT_NE(nullptr, context_);
     }

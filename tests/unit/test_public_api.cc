@@ -1,8 +1,6 @@
 #include <gtest/gtest.h>
 
-extern "C" {
 #include "wtf.h"
-}
 
 TEST(PublicApi, VersionAndStringHelpersAreAvailable)
 {

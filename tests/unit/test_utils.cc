@@ -2,9 +2,7 @@
 
 #include <cstdint>
 
-extern "C" {
 #include "utils.h"
-}
 
 TEST(Utils, MapsWebTransportApplicationErrorsIntoHttp3Range)
 {

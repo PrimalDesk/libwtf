@@ -3,16 +3,14 @@
 #include <cstddef>
 #include <cstdint>
 
-extern "C" {
 #include "settings.h"
 #include "varint.h"
-}
 
 namespace {
 
-wtf_connection MakeConnection(wtf_webtransport_draft_t draft = WTF_WEBTRANSPORT_DRAFT_AUTO)
+void InitializeConnection(wtf_connection& conn,
+    wtf_webtransport_draft_t draft = WTF_WEBTRANSPORT_DRAFT_AUTO)
 {
-    wtf_connection conn = {};
     conn.requested_webtransport_draft = draft;
     wtf_settings_init(&conn.local_settings);
     conn.local_settings.qpack_max_table_capacity = WTF_QPACK_DYNAMIC_TABLE_SIZE;
@@ -22,7 +20,6 @@ wtf_connection MakeConnection(wtf_webtransport_draft_t draft = WTF_WEBTRANSPORT_
     conn.local_settings.wt_initial_max_streams_bidi = 32;
     conn.local_settings.wt_initial_max_streams_uni = 32;
     conn.local_settings.wt_initial_max_data = 1048576;
-    return conn;
 }
 
 uint8_t* AppendSetting(uint8_t* pos, uint64_t id, uint64_t value)
@@ -66,7 +63,8 @@ bool EncodedSettingsHasId(const uint8_t* frame, size_t frame_len, uint64_t expec
 
 TEST(Settings, AutoAdvertisesAllSupportedDrafts)
 {
-    wtf_connection conn = MakeConnection();
+    wtf_connection conn{};
+    InitializeConnection(conn);
     uint8_t frame[512] = {};
     size_t frame_len = 0;
 
@@ -82,7 +80,8 @@ TEST(Settings, AutoAdvertisesAllSupportedDrafts)
 
 TEST(Settings, Draft15OnlyAdvertisesRfcDatagramsAndDraft15Settings)
 {
-    wtf_connection conn = MakeConnection(WTF_WEBTRANSPORT_DRAFT_15);
+    wtf_connection conn{};
+    InitializeConnection(conn, WTF_WEBTRANSPORT_DRAFT_15);
     uint8_t frame[512] = {};
     size_t frame_len = 0;
 
@@ -97,7 +96,8 @@ TEST(Settings, Draft15OnlyAdvertisesRfcDatagramsAndDraft15Settings)
 
 TEST(Settings, Draft07OnlyAdvertisesRfcDatagramsAndMaxSessions)
 {
-    wtf_connection conn = MakeConnection(WTF_WEBTRANSPORT_DRAFT_07);
+    wtf_connection conn{};
+    InitializeConnection(conn, WTF_WEBTRANSPORT_DRAFT_07);
     uint8_t frame[512] = {};
     size_t frame_len = 0;
 
@@ -112,7 +112,8 @@ TEST(Settings, Draft07OnlyAdvertisesRfcDatagramsAndMaxSessions)
 
 TEST(Settings, Draft02OnlyAdvertisesLegacyDatagramsAndLegacyWebTransport)
 {
-    wtf_connection conn = MakeConnection(WTF_WEBTRANSPORT_DRAFT_02);
+    wtf_connection conn{};
+    InitializeConnection(conn, WTF_WEBTRANSPORT_DRAFT_02);
     uint8_t frame[512] = {};
     size_t frame_len = 0;
 
@@ -126,7 +127,8 @@ TEST(Settings, Draft02OnlyAdvertisesLegacyDatagramsAndLegacyWebTransport)
 
 TEST(Settings, DecodesDraft15Settings)
 {
-    wtf_connection conn = MakeConnection();
+    wtf_connection conn{};
+    InitializeConnection(conn);
     wtf_settings_init(&conn.peer_settings);
     uint8_t peer_body[64] = {};
     uint8_t* pos = peer_body;
@@ -146,7 +148,8 @@ TEST(Settings, DecodesDraft15Settings)
 
 TEST(Settings, DecodesDraft07Settings)
 {
-    wtf_connection conn = MakeConnection();
+    wtf_connection conn{};
+    InitializeConnection(conn);
     wtf_settings_init(&conn.peer_settings);
     uint8_t peer_body[64] = {};
     uint8_t* pos = peer_body;
@@ -163,7 +166,8 @@ TEST(Settings, DecodesDraft07Settings)
 
 TEST(Settings, DecodesDraft02Settings)
 {
-    wtf_connection conn = MakeConnection();
+    wtf_connection conn{};
+    InitializeConnection(conn);
     wtf_settings_init(&conn.peer_settings);
     uint8_t peer_body[64] = {};
     uint8_t* pos = peer_body;
@@ -180,7 +184,8 @@ TEST(Settings, DecodesDraft02Settings)
 
 TEST(Settings, RejectsInvalidBooleanSettings)
 {
-    wtf_connection conn = MakeConnection();
+    wtf_connection conn{};
+    InitializeConnection(conn);
     uint8_t peer_body[64] = {};
     uint8_t* pos = peer_body;
     pos = AppendSetting(pos, WTF_SETTING_H3_DATAGRAM, 2);
@@ -195,7 +200,8 @@ TEST(Settings, RejectsInvalidBooleanSettings)
 
 TEST(Settings, AllowsNonZeroDraft15EnableValues)
 {
-    wtf_connection conn = MakeConnection();
+    wtf_connection conn{};
+    InitializeConnection(conn);
     wtf_settings_init(&conn.peer_settings);
     uint8_t peer_body[64] = {};
     uint8_t* pos = peer_body;

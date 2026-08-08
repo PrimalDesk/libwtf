@@ -609,7 +609,10 @@ wtf_result_t wtf_server_create(wtf_context_t* context, const wtf_server_config_t
                 goto cleanup_cred_config;
             }
 
-            srv->cred_config->CertificateHashStore->Flags = 0;  // Default flags
+            srv->cred_config->CertificateHashStore->Flags
+                = config->cert_config->cert_data.hash_store.machine_store
+                ? QUIC_CERTIFICATE_HASH_STORE_FLAG_MACHINE_STORE
+                : QUIC_CERTIFICATE_HASH_STORE_FLAG_NONE;
 
             if (!wtf_parse_thumbprint(config->cert_config->cert_data.hash_store.thumbprint,
                                       srv->cred_config->CertificateHashStore->ShaHash)) {

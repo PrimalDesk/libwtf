@@ -1678,8 +1678,8 @@ static wtf_result_t wtf_http3_encode_connect_request(
     uint32_t header_block_len = 0;
 
     mtx_lock(&conn->qpack.mutex);
-    if (!conn->qpack.initialized
-        || lsqpack_enc_start_header(&conn->qpack.encoder, 0, stream->id) != 0) {
+    if (!conn->qpack.initialized || stream->id > UINT32_MAX
+        || lsqpack_enc_start_header(&conn->qpack.encoder, 0, (uint32_t)stream->id) != 0) {
         mtx_unlock(&conn->qpack.mutex);
         return WTF_ERROR_INVALID_STATE;
     }
@@ -2108,7 +2108,8 @@ static wtf_result_t wtf_http3_encode_response(
             }
         }
 
-        if (headers_valid && lsqpack_enc_start_header(&conn->qpack.encoder, 0, stream->id) == 0) {
+        if (headers_valid && stream->id <= UINT32_MAX
+            && lsqpack_enc_start_header(&conn->qpack.encoder, 0, (uint32_t)stream->id) == 0) {
             uint8_t enc_stream_buf[WTF_MAX_CONNECT_RESPONSE_HEADER_BYTES];
             size_t enc_stream_total = 0;
             size_t qpack_prefix_len = 2;
@@ -2662,7 +2663,10 @@ static bool wtf_http3_parse_uni_stream_type(wtf_http3_stream* stream, const uint
     }
 
     stream->type = stream_type;
-    *offset = type_offset;
+    if (type_offset > UINT32_MAX) {
+        return false;
+    }
+    *offset = (uint32_t)type_offset;
 
     switch (stream_type) {
         case WTF_STREAM_TYPE_CONTROL:
@@ -2755,7 +2759,10 @@ static bool wtf_associate_webtransport_session(wtf_http3_stream* stream, const u
         return true;
     }
 
-    *offset = session_offset;
+    if (session_offset > UINT32_MAX) {
+        return false;
+    }
+    *offset = (uint32_t)session_offset;
 
     if (!wtf_http3_validate_session_id_or_shutdown(stream->connection, session_id,
                                                    "unidirectional stream header")) {
@@ -3249,8 +3256,25 @@ static QUIC_STATUS wtf_handle_stream_shutdown_events(wtf_http3_stream* stream, H
                 default:
                     break;
             }
+        } else if (Event->Type == QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE
+                   && stream->id == UINT64_MAX) {
+            /*
+             * A peer-initiated stream is registered after its first RECEIVE.
+             * Some valid HTTP/3 infrastructure streams (notably the peer QPACK
+             * decoder stream) can remain empty for their whole lifetime.  Such
+             * a stream still owns an MsQuic HQUIC and must be retired from its
+             * callback even though it never entered the connection map.
+             */
+            WTF_LOG_DEBUG(conn->context, "stream",
+                          "Unreceived stream %llu shutdown complete",
+                          (unsigned long long)stream_id);
+            stream_to_destroy = stream;
         }
         mtx_unlock(&conn->streams_mutex);
+    } else if (Event->Type == QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE
+               && stream->id == UINT64_MAX) {
+        /* GetParam failure must not leak the callback-owned stream handle. */
+        stream_to_destroy = stream;
     }
 
     if (stream_to_dispatch) {

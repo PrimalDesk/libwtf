@@ -159,19 +159,29 @@ void wtf_context_destroy(wtf_context_t* context)
         wtf_client_destroy((wtf_client_t*)client);
     }
 
-    mtx_lock(&ctx->mutex);
+    /*
+     * RegistrationClose is synchronous: it waits for every outstanding MsQuic
+     * callback. Never hold the context mutex while waiting, because callbacks
+     * are allowed to finish libwtf objects and may need that mutex themselves.
+     * The server/client pointers were detached above, so destruction is already
+     * single-owner at this point.
+     */
+    HQUIC registration = ctx->registration;
+    const QUIC_API_TABLE* quic_api = ctx->quic_api;
+    ctx->registration = NULL;
+    ctx->quic_api = NULL;
 
-    if (ctx->registration) {
-        ctx->quic_api->RegistrationClose(ctx->registration);
-        ctx->registration = NULL;
+    if (registration) {
+        WTF_LOG_DEBUG(ctx, "context", "Closing MsQuic registration");
+        quic_api->RegistrationClose(registration);
+        WTF_LOG_DEBUG(ctx, "context", "MsQuic registration closed");
     }
 
-    if (ctx->quic_api) {
-        MsQuicClose(ctx->quic_api);
-        ctx->quic_api = NULL;
+    if (quic_api) {
+        WTF_LOG_DEBUG(ctx, "context", "Closing MsQuic API");
+        MsQuicClose(quic_api);
+        WTF_LOG_DEBUG(ctx, "context", "MsQuic API closed");
     }
-
-    mtx_unlock(&ctx->mutex);
     mtx_destroy(&ctx->mutex);
 
     free(context);

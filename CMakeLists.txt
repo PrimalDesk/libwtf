@@ -81,7 +81,9 @@ set(WTF_VERSION_MINOR ${GIT_VERSION_MINOR})
 set(WTF_VERSION_PATCH ${GIT_VERSION_PATCH})
 
 if(WIN32)
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    if(NOT DEFINED CMAKE_MSVC_RUNTIME_LIBRARY)
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    endif()
     set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /NODEFAULTLIB:libucrt.lib /DEFAULTLIB:ucrt.lib")
     add_compile_definitions(WIN32_LEAN_AND_MEAN)
     if(HAS_SPECTRE)
@@ -334,6 +336,10 @@ set(WTF_PUBLIC_HEADERS
     include/wtf.h
 )
 
+if(MSVC)
+    add_compile_options($<$<COMPILE_LANGUAGE:C>:/experimental:c11atomics>)
+endif()
+
 add_library(wtf ${WTF_SOURCES})
 
 set_target_properties(wtf PROPERTIES
@@ -369,14 +375,10 @@ if(WIN32 OR EMSCRIPTEN)
     )
 endif()
 
-target_link_libraries(wtf
-    PRIVATE
-        ${MSQUIC_LIBRARIES}
-        ${PLATFORM_LIBS}
-)
-
-if(MSVC)
-    target_compile_options(wtf PRIVATE /experimental:c11atomics)
+if(BUILD_SHARED_LIBS)
+    target_link_libraries(wtf PRIVATE ${MSQUIC_LIBRARIES} ${PLATFORM_LIBS})
+else()
+    target_link_libraries(wtf PUBLIC ${MSQUIC_LIBRARIES} ${PLATFORM_LIBS})
 endif()
 
 if(WTF_ENABLE_COVERAGE)
@@ -389,6 +391,10 @@ if(WTF_ENABLE_LOGGING)
 endif()
 
 target_compile_definitions(wtf PRIVATE WTF_EXPORTS QUIC_API_ENABLE_PREVIEW_FEATURES=1)
+
+if(NOT BUILD_SHARED_LIBS)
+    target_compile_definitions(wtf PUBLIC WTF_STATIC=1)
+endif()
 
 if(WTF_EXTERNAL_MSQUIC)
     target_compile_definitions(wtf PRIVATE WTF_EXTERNAL_MSQUIC=1)

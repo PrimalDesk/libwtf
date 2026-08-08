@@ -11,7 +11,9 @@ extern "C" {
 
 // #region Export macros
 
-#ifdef _WIN32
+#if defined(WTF_STATIC)
+    #define WTF_API
+#elif defined(_WIN32)
     #ifdef WTF_EXPORTS
         #define WTF_API __declspec(dllexport)
     #else
@@ -176,8 +178,8 @@ typedef enum {
 //! Datagram send states for tracking datagram lifecycle
 typedef enum {
     WTF_DATAGRAM_SEND_UNKNOWN = 0,  //! Not yet sent.
-    //! Indicates the datagram has now been sent out on the network. This is not a final state; keep
-    //! payload bytes alive until WTF_DATAGRAM_SEND_STATE_IS_FINAL(state) is true.
+    //! Indicates the datagram has now been sent out on the network. This is not a final network
+    //! state, but the caller may now reuse or release its payload bytes.
     WTF_DATAGRAM_SEND_SENT = 1,
     //! The sent datagram is suspected to be lost. If desired, the app could retransmit the data
     //! now.
@@ -194,6 +196,8 @@ typedef enum {
 } wtf_datagram_send_state_t;
 
 #define WTF_DATAGRAM_SEND_STATE_IS_FINAL(State) ((State) >= WTF_DATAGRAM_SEND_LOST_DISCARDED)
+#define WTF_DATAGRAM_SEND_STATE_RELEASES_PAYLOAD(State) \
+    ((State) == WTF_DATAGRAM_SEND_SENT || WTF_DATAGRAM_SEND_STATE_IS_FINAL(State))
 
 //! QPACK error codes as defined in RFC 9204
 typedef enum {
@@ -467,6 +471,7 @@ typedef struct {
         struct {
             const char* thumbprint;  //! Hex string of certificate thumbprint
             const char* store_name;  //! Name of certificate store
+            bool machine_store;      //! true selects LocalMachine, false CurrentUser
         } hash_store;
 
         // PKCS#12/PFX certificates
@@ -738,8 +743,9 @@ WTF_API wtf_result_t wtf_session_drain(wtf_session_t* session);
 //! @note Memory ownership:
 //! - The buffers array and all buffer data are always owned by the caller.
 //! - On SUCCESS: The library copies the buffer descriptors, but does not copy payload bytes.
-//!   The payload bytes must remain valid until the datagram send reaches a final state
-//!   (use WTF_DATAGRAM_SEND_STATE_IS_FINAL macro).
+//!   The payload bytes must remain valid until the send reaches a state for which
+//!   WTF_DATAGRAM_SEND_STATE_RELEASES_PAYLOAD is true. Keep operation_context alive until
+//!   WTF_DATAGRAM_SEND_STATE_IS_FINAL is true.
 //! - On immediate FAILURE: The caller retains ownership and no send-state callback is delivered.
 //! - Event buffer descriptors are borrowed and valid only for the callback duration.
 WTF_API wtf_result_t wtf_session_send_datagram(wtf_session_t* session, const wtf_buffer_t* buffers,

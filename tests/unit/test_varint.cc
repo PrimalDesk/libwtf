@@ -4,9 +4,7 @@
 #include <cstdint>
 #include <cstdlib>
 
-extern "C" {
 #include "varint.h"
-}
 
 TEST(Varint, ReportsEncodedSizeAtBoundaries)
 {

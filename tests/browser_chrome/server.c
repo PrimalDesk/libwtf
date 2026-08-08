@@ -353,6 +353,7 @@ int main(int argc, char** argv)
     uint16_t port = BROWSER_INTEROP_DEFAULT_PORT;
     const char* cert_path = "certs/localhost.crt";
     const char* key_path = "certs/localhost.key";
+    const char* cert_thumbprint = NULL;
     uint32_t timeout_ms = BROWSER_INTEROP_DEFAULT_TIMEOUT_MS;
 
     interop_state_t state = {
@@ -376,6 +377,8 @@ int main(int argc, char** argv)
             cert_path = argv[++i];
         } else if (strcmp(argv[i], "--key") == 0 && i + 1 < argc) {
             key_path = argv[++i];
+        } else if (strcmp(argv[i], "--cert-thumbprint") == 0 && i + 1 < argc) {
+            cert_thumbprint = argv[++i];
         } else if (strcmp(argv[i], "--expected-streams") == 0 && i + 1 < argc) {
             if (!parse_u32(argv[++i], &state.expected_uni_streams)) {
                 fprintf(stderr, "browser interop: invalid --expected-streams\n");
@@ -395,6 +398,7 @@ int main(int argc, char** argv)
             state.verbose = true;
         } else if (strcmp(argv[i], "--help") == 0) {
             printf("Usage: %s [--port port] [--cert file] [--key file] "
+                   "[--cert-thumbprint sha1] "
                    "[--expected-streams n] [--expected-bytes n] [--timeout-ms n] "
                    "[--verbose]\n",
                    argv[0]);
@@ -409,6 +413,9 @@ int main(int argc, char** argv)
         .log_level = state.verbose ? WTF_LOG_LEVEL_TRACE : WTF_LOG_LEVEL_ERROR,
         .log_callback = log_callback,
         .log_user_context = &state,
+        .worker_thread_count = 4,
+        .enable_load_balancing = true,
+        .execution_profile = WTF_EXECUTION_PROFILE_MAX_THROUGHPUT,
     };
     wtf_context_t* context = NULL;
     wtf_result_t result = wtf_context_create(&context_config, &context);
@@ -418,13 +425,17 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    wtf_certificate_config_t cert_config = {
-        .cert_type = WTF_CERT_TYPE_FILE,
-        .cert_data.file = {
-            .cert_path = cert_path,
-            .key_path = key_path,
-        },
-    };
+    wtf_certificate_config_t cert_config = {0};
+    if (cert_thumbprint) {
+        cert_config.cert_type = WTF_CERT_TYPE_HASH_STORE;
+        cert_config.cert_data.hash_store.thumbprint = cert_thumbprint;
+        cert_config.cert_data.hash_store.store_name = "MY";
+        cert_config.cert_data.hash_store.machine_store = true;
+    } else {
+        cert_config.cert_type = WTF_CERT_TYPE_FILE;
+        cert_config.cert_data.file.cert_path = cert_path;
+        cert_config.cert_data.file.key_path = key_path;
+    }
     wtf_server_config_t server_config = {
         .host = "127.0.0.1",
         .port = port,

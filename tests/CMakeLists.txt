@@ -1,6 +1,8 @@
 set(INSTALL_GTEST OFF CACHE BOOL "Disable GoogleTest install rules" FORCE)
 set(BUILD_GMOCK OFF CACHE BOOL "Disable GoogleMock" FORCE)
 set(gtest_force_shared_crt ON CACHE BOOL "Use shared CRT with MSVC" FORCE)
+set(WTF_TEST_CERT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../certs" CACHE PATH
+    "Directory containing localhost.crt, localhost.key, and fingerprint.hex")
 
 add_subdirectory(
     ${CMAKE_CURRENT_SOURCE_DIR}/../deps/googletest
@@ -24,6 +26,11 @@ set(WTF_UNIT_TEST_SOURCES
 )
 
 add_executable(wtf_unit_tests ${WTF_UNIT_TEST_SOURCES})
+target_compile_features(wtf_unit_tests PRIVATE cxx_std_23)
+target_compile_definitions(wtf_unit_tests PRIVATE WTF_STATIC=1)
+if(MSVC)
+    target_compile_options(wtf_unit_tests PRIVATE /experimental:c11atomics)
+endif()
 
 target_include_directories(wtf_unit_tests
     PRIVATE
@@ -36,9 +43,19 @@ target_include_directories(wtf_unit_tests
         ${CMAKE_CURRENT_SOURCE_DIR}/../deps/verstable
 )
 
+if(WIN32)
+    target_include_directories(wtf_unit_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../wincompat
+    )
+endif()
+
 target_include_directories(wtf_unit_tests SYSTEM PRIVATE ${MSQUIC_INCLUDE_DIRS})
 
-target_link_libraries(wtf_unit_tests PRIVATE GTest::gtest_main ${PLATFORM_LIBS})
+target_link_libraries(wtf_unit_tests PRIVATE
+    GTest::gtest_main
+    ${MSQUIC_LIBRARIES}
+    ${PLATFORM_LIBS}
+)
 
 if(WTF_ENABLE_COVERAGE)
     target_compile_options(wtf_unit_tests PRIVATE ${WTF_COVERAGE_COMPILE_OPTIONS})
@@ -46,6 +63,7 @@ if(WTF_ENABLE_COVERAGE)
 endif()
 
 gtest_discover_tests(wtf_unit_tests
+    DISCOVERY_MODE PRE_TEST
     PROPERTIES
         LABELS "unit;regression"
 )
@@ -60,7 +78,7 @@ target_include_directories(wtf_public_api_tests
 
 target_compile_definitions(wtf_public_api_tests
     PRIVATE
-        WTF_TEST_CERT_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../certs"
+        WTF_TEST_CERT_DIR="${WTF_TEST_CERT_DIR}"
 )
 
 target_link_libraries(wtf_public_api_tests PRIVATE GTest::gtest_main wtf ${PLATFORM_LIBS})
@@ -71,6 +89,7 @@ if(WTF_ENABLE_COVERAGE)
 endif()
 
 gtest_discover_tests(wtf_public_api_tests
+    DISCOVERY_MODE PRE_TEST
     PROPERTIES
         LABELS "unit;public-api;regression"
 )
@@ -85,7 +104,7 @@ target_include_directories(wtf_e2e_tests
 
 target_compile_definitions(wtf_e2e_tests
     PRIVATE
-        WTF_TEST_CERT_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../certs"
+        WTF_TEST_CERT_DIR="${WTF_TEST_CERT_DIR}"
 )
 
 target_link_libraries(wtf_e2e_tests PRIVATE wtf ${PLATFORM_LIBS})
@@ -124,9 +143,9 @@ if(UV_EXECUTABLE)
             python
             interop.py
             --server-binary $<TARGET_FILE:wtf_browser_interop_server>
-            --cert ${CMAKE_CURRENT_SOURCE_DIR}/../certs/localhost.crt
-            --key ${CMAKE_CURRENT_SOURCE_DIR}/../certs/localhost.key
-            --hash ${CMAKE_CURRENT_SOURCE_DIR}/../certs/fingerprint.hex
+            --cert ${WTF_TEST_CERT_DIR}/localhost.crt
+            --key ${WTF_TEST_CERT_DIR}/localhost.key
+            --hash ${WTF_TEST_CERT_DIR}/fingerprint.hex
     )
     set_tests_properties(wtf_browser_chrome_interop PROPERTIES
         LABELS "browser;interop;integration"
